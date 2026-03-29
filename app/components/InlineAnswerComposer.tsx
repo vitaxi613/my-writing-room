@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
 import { INLINE_INSPIRATION_CARDS } from "@/lib/prompts";
 
 export function InlineAnswerComposer({
@@ -41,6 +41,17 @@ export function InlineAnswerComposer({
 
     setIsSubmitting(true);
     setError(null);
+
+    let supabase;
+    try {
+      supabase = getSupabase();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "未配置 Supabase，无法提交。",
+      );
+      setIsSubmitting(false);
+      return;
+    }
 
     const { error: aError } = await supabase.from("answers").insert({
       question_id: questionId,

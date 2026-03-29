@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
 import { notFound } from "next/navigation";
 import { WritingCompanion } from "@/app/components/WritingCompanion";
+
+/** 依赖线上 Supabase，构建期不预渲染本页，避免 collect page data 失败 */
+export const dynamic = "force-dynamic";
 
 type QuestionRow = {
   id: string;
@@ -25,6 +28,14 @@ export default async function SpacePage({
   params: Promise<{ questionId: string }>;
 }) {
   const { questionId } = await params;
+
+  const supabase = (() => {
+    try {
+      return getSupabase();
+    } catch {
+      notFound();
+    }
+  })();
 
   const { data: question, error: qError } = await supabase
     .from("question")
