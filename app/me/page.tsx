@@ -6,6 +6,7 @@ import type { DiaryEntry } from "@/lib/diaryTypes";
 import { isSubconsciousEntry } from "@/lib/diaryTypes";
 import { getExploreJourneyTitle } from "@/lib/questionSystem";
 import { RecoveryBindingHint } from "@/app/components/RecoveryBindingHint";
+import { WriterNicknameSettings } from "@/app/components/WriterNicknameSettings";
 import { FirstEntryRecoveryBanner } from "@/app/components/FirstEntryRecoveryBanner";
 import { WritingCompanion } from "@/app/components/WritingCompanion";
 import { readDiaryEntries } from "@/lib/diaryStore";
@@ -78,6 +79,7 @@ export default function MePage() {
         </p>
         <WritingCompanion variant="me" className="pt-1" />
         <RecoveryBindingHint className="pt-2" />
+        <WriterNicknameSettings />
       </section>
 
       <section className="paper-sheet divide-y divide-[var(--paper-line)] rounded-sm">
