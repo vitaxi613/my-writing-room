@@ -48,9 +48,26 @@ export function RoomBindEmailPanel({ className = "" }: { className?: string }) {
 
   if (!isWritingRoomAuthConfigured()) {
     return (
-      <p className={`text-xs text-zinc-400 dark:text-zinc-500 ${className}`}>
-        云端保存未配置：请在环境变量中设置 Supabase URL 与 Anon Key。
-      </p>
+      <div
+        className={`space-y-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 ${className}`}
+      >
+        <p>
+          当前无法使用邮箱绑定：本页面在构建时没有读到 Supabase 的公开配置（
+          <code className="rounded bg-zinc-100 px-1 text-[11px] dark:bg-zinc-800">
+            NEXT_PUBLIC_SUPABASE_URL
+          </code>{" "}
+          /{" "}
+          <code className="rounded bg-zinc-100 px-1 text-[11px] dark:bg-zinc-800">
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
+          </code>
+          ）。
+        </p>
+        <p className="text-zinc-400 dark:text-zinc-500">
+          若站点部署在 Vercel：到该项目的 Settings → Environment Variables
+          添加上述两项（值与本地 .env.local 相同），保存后对最新部署执行一次
+          Redeploy（建议不要用仅复用缓存的旧产物）。
+        </p>
+      </div>
     );
   }
 

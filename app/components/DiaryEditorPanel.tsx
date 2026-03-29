@@ -27,11 +27,16 @@ type Props = {
   preEditorHint?: React.ReactNode;
   fallbackQuestionTitle?: string | null;
   onSave: (payload: SavePayload) => void;
+  /** 仅 homeImmersive：与「收进这一页」并列的一纸回响 */
+  onPaperEcho?: (payload: SavePayload) => void;
+  paperEchoBusy?: boolean;
   isSaving?: boolean;
   saveLabel?: string;
   savingLabel?: string;
   /** 首页：长文档沉浸布局，弱化卡片与工具条前置 */
   homeImmersive?: boolean;
+  /** 仅 homeImmersive：收篇按钮下方的轻提示 */
+  homeFooterHint?: React.ReactNode;
 };
 
 export function DiaryEditorPanel({
@@ -42,10 +47,13 @@ export function DiaryEditorPanel({
   preEditorHint,
   fallbackQuestionTitle,
   onSave,
+  onPaperEcho,
+  paperEchoBusy = false,
   isSaving = false,
   saveLabel = "收进这一页",
   savingLabel = "…",
   homeImmersive = false,
+  homeFooterHint,
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
@@ -198,6 +206,35 @@ export function DiaryEditorPanel({
     </div>
   );
 
+  const echoSecondaryBtn =
+    "inline-flex shrink-0 items-center justify-center rounded-full border border-[var(--paper-line)] bg-transparent px-5 py-2 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100/90 disabled:cursor-not-allowed disabled:opacity-45 dark:border-zinc-600 dark:text-zinc-100 dark:hover:bg-zinc-800/70";
+
+  const homeFooterWithEcho = onPaperEcho ? (
+    <div className="flex flex-col gap-4 border-t border-[var(--paper-line)] pt-4">
+      <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+        默认公开；在「我的房间」可改为仅自己可见。
+      </p>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => onPaperEcho({ title, content })}
+          disabled={!content.trim() || isSaving || paperEchoBusy}
+          className={echoSecondaryBtn}
+        >
+          {paperEchoBusy ? "…" : "一纸回响"}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSave({ title, content })}
+          disabled={!content.trim() || isSaving}
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:disabled:bg-zinc-600"
+        >
+          {isSaving ? savingLabel : saveLabel}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   if (homeImmersive) {
     return (
       <div className="space-y-5 sm:space-y-6">
@@ -212,7 +249,8 @@ export function DiaryEditorPanel({
         </div>
         <HomeWritingPrefs prefs={prefs} onChange={setPrefs} placement="belowBody" />
         {inspirationBlock}
-        {footerRow}
+        {homeFooterWithEcho ?? footerRow}
+        {homeFooterHint ? <div className="pt-1">{homeFooterHint}</div> : null}
       </div>
     );
   }

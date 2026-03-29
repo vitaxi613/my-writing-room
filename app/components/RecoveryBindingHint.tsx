@@ -7,8 +7,6 @@ import {
   CLOUD_STORAGE_MODE_EVENT,
   isCloudStorageMode,
 } from "@/lib/storageMode";
-import { isWritingRoomAuthConfigured } from "@/lib/supabase/browser";
-
 type Props = {
   className?: string;
 };
@@ -23,8 +21,6 @@ export function RecoveryBindingHint({ className = "" }: Props) {
     return () => window.removeEventListener(CLOUD_STORAGE_MODE_EVENT, sync);
   }, []);
 
-  const configured = isWritingRoomAuthConfigured();
-
   if (cloud) {
     return (
       <div className={`max-w-xl space-y-2 ${className}`}>
@@ -38,7 +34,8 @@ export function RecoveryBindingHint({ className = "" }: Props) {
       <p className="text-xs leading-relaxed text-zinc-400 dark:text-zinc-500">
         {WRITER_RECOVERY_HINT}
       </p>
-      {configured ? <RoomBindEmailPanel /> : null}
+      {/* 始终展示面板：已配置时显示邮箱表单；未配置时由 RoomBindEmailPanel 说明原因 */}
+      <RoomBindEmailPanel />
     </div>
   );
 }
