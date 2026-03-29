@@ -79,7 +79,6 @@ export default function MePage() {
         </p>
         <WritingCompanion variant="me" className="pt-1" />
         <RecoveryBindingHint className="pt-2" />
-        <WriterNicknameSettings />
       </section>
 
       <section className="paper-sheet divide-y divide-[var(--paper-line)] rounded-sm">
@@ -169,6 +168,8 @@ export default function MePage() {
           </Link>
         </div>
       </section>
+
+      <WriterNicknameSettings />
     </div>
   );
 }
