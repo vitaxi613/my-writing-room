@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 纸张感：偏暖、略低于纯白，减少「控制台」感 */
+  --background: #f7f4ee;
+  --foreground: #1c1917;
+  --paper-line: rgba(120, 113, 108, 0.14);
+  --paper-warm: #fffdf7;
+  --garden-mist: rgba(255, 248, 235, 0.55);
 }
 
 @theme inline {
@@ -10,17 +14,193 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-writing-body: var(--font-noto-serif-sc), "Noto Serif SC", ui-serif, Georgia,
+    serif;
+  --font-writing-hand: var(--font-zhi-mang), "Zhi Mang Xing", cursive;
 }
 
+/* 深色模式：仍偏阅读向，避免纯黑论坛感 */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #141210;
+    --foreground: #f5f5f4;
+    --paper-line: rgba(231, 229, 228, 0.12);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* 轻微纸张纹理 + 暖雾（全站底，偏手帐感、非冷白屏） */
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.4;
+  background-image: radial-gradient(
+      ellipse 100% 60% at 50% -15%,
+      var(--garden-mist),
+      transparent 55%
+    ),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+body > div {
+  position: relative;
+  z-index: 1;
+}
+
+/* 长文区：衬线正文 */
+.font-writing-body {
+  font-family: var(--font-writing-body);
+}
+
+/* 点缀：手写短句（陪伴语、小标题等），勿全站滥用 */
+.font-writing-hand {
+  font-family: var(--font-writing-hand);
+}
+
+/* 首页房间大标题：偏暖、偏松的手写（Long Cang），与正文衬线区分 */
+.font-home-room-title {
+  font-family: var(--font-hand-room), "Long Cang", cursive;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  .font-home-room-title {
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* 单页「稿纸」容器：轻边线、弱阴影 */
+.paper-sheet {
+  border: 1px solid var(--paper-line);
+  background: rgba(255, 253, 247, 0.92);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+/* 首页主写作块：略厚一点纸、更软边、轻微粗糙感 */
+.paper-sheet--home {
+  border-color: rgba(120, 113, 108, 0.12);
+  background: linear-gradient(
+      165deg,
+      rgba(255, 254, 250, 0.98) 0%,
+      rgba(252, 248, 240, 0.96) 48%,
+      rgba(255, 252, 246, 0.98) 100%
+    ),
+    var(--paper-warm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 2px rgba(90, 70, 40, 0.05);
+}
+
+/* 首页长文档舞台：弱卡片、像一页摊开的纸 */
+.paper-sheet--home-stage {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: linear-gradient(
+      180deg,
+      rgba(255, 254, 251, 0.97) 0%,
+      rgba(252, 249, 242, 0.99) 35%,
+      rgba(255, 252, 246, 1) 100%
+    ),
+    var(--paper-warm);
+}
+
+/* 首页文稿标题线：区分题与正文，非表单框（与 --paper-line 同级可见度） */
+.home-manuscript-title {
+  border-bottom: 1px solid var(--paper-line);
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+/* 首页题目+正文：略抬一纸色，无边线输入框感 */
+.home-manuscript-surface {
+  margin-top: 0.35rem;
+  padding: 0.75rem 0.5rem 1.25rem;
+  border-radius: 1px;
+  background: rgba(255, 253, 248, 0.5);
+}
+
+/* 首页：多一点留白与呼吸（相对其它页可略收紧主列已在 layout） */
+.home-secret-garden {
+  padding-top: 0.25rem;
+}
+
+.home-hero-strip {
+  padding-left: 0.125rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .paper-sheet {
+    background: rgba(28, 25, 23, 0.65);
+    box-shadow: none;
+  }
+
+  .paper-sheet--home {
+    background: linear-gradient(
+        165deg,
+        rgba(32, 28, 26, 0.92) 0%,
+        rgba(24, 22, 20, 0.88) 100%
+      );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .paper-sheet--home-stage {
+    background: linear-gradient(
+      180deg,
+      rgba(30, 27, 24, 0.94) 0%,
+      rgba(22, 20, 18, 0.96) 100%
+    );
+  }
+
+  .home-manuscript-title {
+    border-bottom-color: rgba(231, 229, 228, 0.22);
+  }
+
+  .home-manuscript-surface {
+    background: rgba(38, 34, 30, 0.35);
+  }
+
+  body::before {
+    opacity: 0.25;
+  }
+}
+
+/* 首页写作区内层：实纸感、无毛玻璃，适合长文 */
+.home-writing-sheet {
+  border-radius: 12px;
+  border: 1px solid var(--paper-line);
+  background: rgba(255, 252, 246, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-writing-sheet {
+    border-color: rgba(231, 229, 228, 0.14);
+    background: rgba(30, 27, 24, 0.72);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+}
+
+/* 首页河狸：轻投影；仅 JPEG 黑底时启用 __blend（透明 PNG 请去掉该类） */
+.home-beaver-drop {
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+.home-beaver-figure__blend {
+  mix-blend-mode: screen;
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-beaver-drop {
+    filter: drop-shadow(0 3px 12px rgba(0, 0, 0, 0.4));
+  }
 }
