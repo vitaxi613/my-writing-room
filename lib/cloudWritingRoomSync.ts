@@ -29,6 +29,12 @@ type ProfileRow = {
   bio: string | null;
   updated_at: number;
 };
+type ProfileFetchResult =
+  | { ok: true; data: ProfileRow | null }
+  | { ok: false };
+type EntriesFetchResult =
+  | { ok: true; data: DiaryEntry[] }
+  | { ok: false };
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pushInFlight = false;
@@ -62,7 +68,7 @@ function rowToProfile(row: ProfileRow): WriterProfile {
 async function fetchServerProfile(
   supabase: SupabaseClient,
   userId: string,
-): Promise<ProfileRow | null> {
+): Promise<ProfileFetchResult> {
   const { data, error } = await supabase
     .from("writing_room_profile")
     .select("*")
@@ -70,32 +76,35 @@ async function fetchServerProfile(
     .maybeSingle<ProfileRow>();
   if (error) {
     console.error("[writing-room] fetch profile", error);
-    return null;
+    return { ok: false };
   }
-  return data;
+  return { ok: true, data };
 }
 
 async function fetchServerEntries(
   supabase: SupabaseClient,
   userId: string,
-): Promise<DiaryEntry[]> {
+): Promise<EntriesFetchResult> {
   const { data, error } = await supabase
     .from("writing_room_entries")
     .select("id,payload")
     .eq("user_id", userId);
   if (error) {
     console.error("[writing-room] fetch entries", error);
-    return [];
+    return { ok: false };
   }
   const list = (data ?? []) as { id: string; payload: DiaryEntry }[];
-  return list
+  return {
+    ok: true,
+    data: list
     .map((r) => r.payload as DiaryEntry)
     .filter(Boolean)
     .sort((a, b) => {
       const ta = Date.parse(a.createdAt) || 0;
       const tb = Date.parse(b.createdAt) || 0;
       return tb - ta;
-    });
+    }),
+  };
 }
 
 function mergeEntriesById(local: DiaryEntry[], server: DiaryEntry[]): DiaryEntry[] {
@@ -118,6 +127,19 @@ function mergeEntriesById(local: DiaryEntry[], server: DiaryEntry[]): DiaryEntry
     const tb = Date.parse(b.createdAt || "") || 0;
     return tb - ta;
   });
+}
+
+function sameEntrySet(a: DiaryEntry[], b: DiaryEntry[]): boolean {
+  if (a.length !== b.length) return false;
+  const fa = a
+    .map((e) => `${e.id}|${e.createdAt}|${e.visibility}|${e.notebook ?? "daily"}`)
+    .sort()
+    .join("\n");
+  const fb = b
+    .map((e) => `${e.id}|${e.createdAt}|${e.visibility}|${e.notebook ?? "daily"}`)
+    .sort()
+    .join("\n");
+  return fa === fb;
 }
 
 async function upsertServerProfile(
@@ -180,11 +202,12 @@ async function pullServerToLocal(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<void> {
-  const row = await fetchServerProfile(supabase, userId);
-  if (!row) return;
-  const entries = await fetchServerEntries(supabase, userId);
-  writeWriterProfile(rowToProfile(row));
-  writeDiaryEntries(entries);
+  const rowRes = await fetchServerProfile(supabase, userId);
+  if (!rowRes.ok || !rowRes.data) return;
+  const entriesRes = await fetchServerEntries(supabase, userId);
+  if (!entriesRes.ok) return;
+  writeWriterProfile(rowToProfile(rowRes.data));
+  writeDiaryEntries(entriesRes.data);
   emitDiaryUpdated();
 }
 
@@ -207,13 +230,18 @@ async function runSyncAfterAuthSessionInner(session: Session): Promise<void> {
   }
 
   const userId = session.user.id;
-  const existing = await fetchServerProfile(supabase, userId);
+  const existingRes = await fetchServerProfile(supabase, userId);
+  // 读云端失败时中止，避免把错误当成“云端为空”触发覆盖写入。
+  if (!existingRes.ok) return;
+  const existing = existingRes.data;
 
   if (!existing) {
     await migrateLocalToServer(supabase, session);
   } else {
     // 先合并，避免“刚写入本地但云端尚未刷新”时被旧快照覆盖。
-    const serverEntries = await fetchServerEntries(supabase, userId);
+    const serverEntriesRes = await fetchServerEntries(supabase, userId);
+    if (!serverEntriesRes.ok) return;
+    const serverEntries = serverEntriesRes.data;
     const localEntries = readDiaryEntries();
     const mergedEntries = mergeEntriesById(localEntries, serverEntries);
     if (mergedEntries.length > 0) {
@@ -249,6 +277,7 @@ export async function pushLocalSnapshotToServer(): Promise<void> {
 
   const profile = readWriterProfile();
   if (!profile?.writerId) return;
+  const localEntries = readDiaryEntries();
 
   pushInFlight = true;
   try {
@@ -257,11 +286,18 @@ export async function pushLocalSnapshotToServer(): Promise<void> {
       session.user.id,
       profile,
     );
+    // 多设备场景下，不能用本地快照直接覆盖云端；先与云端合并再回写。
+    const serverEntriesRes = await fetchServerEntries(supabase, session.user.id);
+    if (!serverEntriesRes.ok) return;
+    const mergedEntries = mergeEntriesById(localEntries, serverEntriesRes.data);
     const okEntries = await replaceServerEntries(
       supabase,
       session.user.id,
-      readDiaryEntries(),
+      mergedEntries,
     );
+    if (okEntries && !sameEntrySet(localEntries, mergedEntries)) {
+      writeDiaryEntries(mergedEntries);
+    }
     if (!okProfile || !okEntries) {
       // 网络/权限偶发失败时保留云端模式，后续写入会再次 debounce 推送
     }
