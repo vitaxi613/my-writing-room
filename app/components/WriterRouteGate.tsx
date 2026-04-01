@@ -3,6 +3,11 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { readWriterProfile } from "@/lib/writerProfile";
+import {
+  createBrowserSupabase,
+  isWritingRoomAuthConfigured,
+} from "@/lib/supabase/browser";
+import { syncAfterAuthSession } from "@/lib/cloudWritingRoomSync";
 
 function isWelcomePath(pathname: string): boolean {
   return pathname === "/welcome";
@@ -32,27 +37,69 @@ export function WriterRouteGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!pathname) return;
+    let cancelled = false;
 
-    if (isWelcomePath(pathname)) {
-      if (hasIdentity()) {
-        router.replace("/");
+    const run = async () => {
+      if (isWelcomePath(pathname)) {
+        if (hasIdentity()) {
+          router.replace("/");
+          return;
+        }
+        // 新设备上可能已完成邮箱登录，但本地 profile 仍未拉取；先补一次同步
+        if (isWritingRoomAuthConfigured()) {
+          try {
+            const supabase = createBrowserSupabase();
+            const {
+              data: { session },
+            } = await supabase.auth.getSession();
+            if (session?.user) {
+              await syncAfterAuthSession(session);
+              if (hasIdentity()) {
+                router.replace("/");
+                return;
+              }
+            }
+          } catch {
+            // ignore and fallback to welcome form
+          }
+        }
+        if (!cancelled) setGate("ok");
         return;
       }
-      setGate("ok");
-      return;
-    }
 
-    if (!isProtectedPath(pathname)) {
-      setGate("ok");
-      return;
-    }
+      if (!isProtectedPath(pathname)) {
+        if (!cancelled) setGate("ok");
+        return;
+      }
 
-    if (!hasIdentity()) {
-      router.replace("/welcome");
-      return;
-    }
+      if (!hasIdentity()) {
+        // 受保护页放行前，优先尝试用已登录邮箱会话恢复 profile
+        if (isWritingRoomAuthConfigured()) {
+          try {
+            const supabase = createBrowserSupabase();
+            const {
+              data: { session },
+            } = await supabase.auth.getSession();
+            if (session?.user) {
+              await syncAfterAuthSession(session);
+            }
+          } catch {
+            // ignore and fallback redirect
+          }
+        }
+        if (!hasIdentity()) {
+          router.replace("/welcome");
+          return;
+        }
+      }
 
-    setGate("ok");
+      if (!cancelled) setGate("ok");
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [pathname, router]);
 
   if (gate === "checking") {
