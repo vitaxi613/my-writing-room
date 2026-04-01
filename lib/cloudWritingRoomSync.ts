@@ -98,6 +98,28 @@ async function fetchServerEntries(
     });
 }
 
+function mergeEntriesById(local: DiaryEntry[], server: DiaryEntry[]): DiaryEntry[] {
+  const map = new Map<string, DiaryEntry>();
+  const upsert = (e: DiaryEntry) => {
+    if (!e?.id) return;
+    const prev = map.get(e.id);
+    if (!prev) {
+      map.set(e.id, e);
+      return;
+    }
+    const tPrev = Date.parse(prev.createdAt || "") || 0;
+    const tNext = Date.parse(e.createdAt || "") || 0;
+    map.set(e.id, tNext >= tPrev ? e : prev);
+  };
+  local.forEach(upsert);
+  server.forEach(upsert);
+  return Array.from(map.values()).sort((a, b) => {
+    const ta = Date.parse(a.createdAt || "") || 0;
+    const tb = Date.parse(b.createdAt || "") || 0;
+    return tb - ta;
+  });
+}
+
 async function upsertServerProfile(
   supabase: SupabaseClient,
   userId: string,
@@ -190,7 +212,18 @@ async function runSyncAfterAuthSessionInner(session: Session): Promise<void> {
   if (!existing) {
     await migrateLocalToServer(supabase, session);
   } else {
-    await pullServerToLocal(supabase, userId);
+    // 先合并，避免“刚写入本地但云端尚未刷新”时被旧快照覆盖。
+    const serverEntries = await fetchServerEntries(supabase, userId);
+    const localEntries = readDiaryEntries();
+    const mergedEntries = mergeEntriesById(localEntries, serverEntries);
+    if (mergedEntries.length > 0) {
+      writeDiaryEntries(mergedEntries);
+      await replaceServerEntries(supabase, userId, mergedEntries);
+    } else {
+      await pullServerToLocal(supabase, userId);
+    }
+    writeWriterProfile(rowToProfile(existing));
+    emitDiaryUpdated();
   }
 
   setCloudStorageMode(true);
