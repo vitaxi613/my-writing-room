@@ -1,7 +1,11 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import type { DiaryEntry } from "./diaryTypes";
+import { diaryEntryRevisionMs, type DiaryEntry } from "./diaryTypes";
+import {
+  clearPendingDeletedEntryIdsAfterServerSync,
+  readPendingDeletedEntryIds,
+} from "./diaryLocalMeta";
 import {
   readDiaryEntries,
   writeDiaryEntries,
@@ -108,6 +112,8 @@ async function fetchServerEntries(
 }
 
 function mergeEntriesById(local: DiaryEntry[], server: DiaryEntry[]): DiaryEntry[] {
+  const pendingDelete = readPendingDeletedEntryIds();
+  const serverFiltered = server.filter((e) => e?.id && !pendingDelete.has(e.id));
   const map = new Map<string, DiaryEntry>();
   const upsert = (e: DiaryEntry) => {
     if (!e?.id) return;
@@ -116,12 +122,13 @@ function mergeEntriesById(local: DiaryEntry[], server: DiaryEntry[]): DiaryEntry
       map.set(e.id, e);
       return;
     }
-    const tPrev = Date.parse(prev.createdAt || "") || 0;
-    const tNext = Date.parse(e.createdAt || "") || 0;
-    map.set(e.id, tNext >= tPrev ? e : prev);
+    const rPrev = diaryEntryRevisionMs(prev);
+    const rNext = diaryEntryRevisionMs(e);
+    // 同修订时间时让后写入的一方胜出：先服务端再本地，保证本机刚改的 visibility 不被旧快照盖掉
+    map.set(e.id, rNext > rPrev ? e : prev);
   };
+  serverFiltered.forEach(upsert);
   local.forEach(upsert);
-  server.forEach(upsert);
   return Array.from(map.values()).sort((a, b) => {
     const ta = Date.parse(a.createdAt || "") || 0;
     const tb = Date.parse(b.createdAt || "") || 0;
@@ -132,11 +139,17 @@ function mergeEntriesById(local: DiaryEntry[], server: DiaryEntry[]): DiaryEntry
 function sameEntrySet(a: DiaryEntry[], b: DiaryEntry[]): boolean {
   if (a.length !== b.length) return false;
   const fa = a
-    .map((e) => `${e.id}|${e.createdAt}|${e.visibility}|${e.notebook ?? "daily"}`)
+    .map(
+      (e) =>
+        `${e.id}|${e.createdAt}|${e.updatedAt ?? ""}|${e.visibility}|${e.notebook ?? "daily"}`,
+    )
     .sort()
     .join("\n");
   const fb = b
-    .map((e) => `${e.id}|${e.createdAt}|${e.visibility}|${e.notebook ?? "daily"}`)
+    .map(
+      (e) =>
+        `${e.id}|${e.createdAt}|${e.updatedAt ?? ""}|${e.visibility}|${e.notebook ?? "daily"}`,
+    )
     .sort()
     .join("\n");
   return fa === fb;
@@ -171,7 +184,10 @@ async function replaceServerEntries(
     console.error("[writing-room] delete entries", delErr);
     return false;
   }
-  if (entries.length === 0) return true;
+  if (entries.length === 0) {
+    clearPendingDeletedEntryIdsAfterServerSync();
+    return true;
+  }
   const { error: insErr } = await supabase.from("writing_room_entries").insert(
     entries.map((e) => ({
       user_id: userId,
@@ -183,6 +199,7 @@ async function replaceServerEntries(
     console.error("[writing-room] insert entries", insErr);
     return false;
   }
+  clearPendingDeletedEntryIdsAfterServerSync();
   return true;
 }
 
@@ -206,8 +223,10 @@ async function pullServerToLocal(
   if (!rowRes.ok || !rowRes.data) return;
   const entriesRes = await fetchServerEntries(supabase, userId);
   if (!entriesRes.ok) return;
+  const pending = readPendingDeletedEntryIds();
+  const pulled = entriesRes.data.filter((e) => e?.id && !pending.has(e.id));
   writeWriterProfile(rowToProfile(rowRes.data));
-  writeDiaryEntries(entriesRes.data);
+  writeDiaryEntries(pulled);
   emitDiaryUpdated();
 }
 

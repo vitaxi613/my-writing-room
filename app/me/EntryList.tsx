@@ -6,6 +6,7 @@ import type { DiaryEntry } from "@/lib/diaryTypes";
 import { getNotebookLabel, isActiveDiaryEntry } from "@/lib/diaryTypes";
 import {
   DIARY_UPDATED_EVENT,
+  deleteDiaryEntry,
   readDiaryEntries,
   writeDiaryEntries,
 } from "@/lib/diaryStore";
@@ -156,6 +157,7 @@ export function useDiaryEntries() {
         ? {
             ...e,
             visibility: e.visibility === "public" ? "locked" : "public",
+            updatedAt: Date.now(),
           }
         : e,
     );
@@ -164,9 +166,7 @@ export function useDiaryEntries() {
   };
 
   const removeEntry = (id: string) => {
-    const current = readDiaryEntries();
-    const next = current.filter((e) => e.id !== id);
-    persist(next);
+    deleteDiaryEntry(id);
     setEntries(readDiaryEntries());
   };
 

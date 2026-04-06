@@ -7,6 +7,7 @@ import {
 } from "./diaryTypes";
 import { ensureWriterProfile } from "./writerProfile";
 import { setFirstEntryRecoveryNudge } from "./storageMode";
+import { addPendingDeletedEntryId } from "./diaryLocalMeta";
 
 export const DIARY_UPDATED_EVENT = "wo-writing-room-diary-updated";
 
@@ -50,8 +51,13 @@ export function writeDiaryEntries(entries: DiaryEntry[]) {
 export function prependDiaryEntry(entry: DiaryEntry) {
   const p = ensureWriterProfile();
   const nick = p.nickname?.trim();
+  const now = Date.now();
   const merged: DiaryEntry = {
     ...entry,
+    updatedAt:
+      typeof entry.updatedAt === "number" && Number.isFinite(entry.updatedAt)
+        ? entry.updatedAt
+        : now,
     writerId: p.writerId,
     writerSlug: p.writerSlug,
     writerNicknameSnapshot:
@@ -65,12 +71,15 @@ export function prependDiaryEntry(entry: DiaryEntry) {
 }
 
 export function updateDiaryEntry(id: string, updater: (entry: DiaryEntry) => DiaryEntry) {
-  const next = readDiaryEntries().map((e) => (e.id === id ? updater(e) : e));
+  const next = readDiaryEntries().map((e) =>
+    e.id === id ? { ...updater(e), updatedAt: Date.now() } : e,
+  );
   writeDiaryEntries(next);
   return next;
 }
 
 export function deleteDiaryEntry(id: string) {
+  addPendingDeletedEntryId(id);
   const next = readDiaryEntries().filter((e) => e.id !== id);
   writeDiaryEntries(next);
   return next;

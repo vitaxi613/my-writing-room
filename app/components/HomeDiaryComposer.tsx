@@ -120,6 +120,7 @@ export function HomeDiaryComposer({ fallbackQuestionTitle }: Props) {
         title: nextTitle.trim() || null,
         content: nextContent.trim(),
         createdAt: now,
+        updatedAt: Date.now(),
         visibility: "public",
         notebook,
         journeyId: journeyId ?? undefined,

@@ -11,6 +11,8 @@ export type DiaryEntry = {
   title: string | null;
   content: string;
   createdAt: string;
+  /** 本地修订时间戳（毫秒），用于云合并时优先保留较新的 visibility/正文等 */
+  updatedAt?: number;
   /** 本机作者 id（新写入由 prependDiaryEntry 注入） */
   writerId?: string;
   /** 公开房间路径段，由 writerId 派生，非昵称 */
@@ -71,6 +73,14 @@ export function isDiaryEntryDeleted(entry: DiaryEntry): boolean {
 
 export function isActiveDiaryEntry(entry: DiaryEntry): boolean {
   return !isDiaryEntryDeleted(entry);
+}
+
+/** 合并/冲突比较用：有 updatedAt 用其，否则退回 createdAt */
+export function diaryEntryRevisionMs(entry: DiaryEntry): number {
+  if (typeof entry.updatedAt === "number" && Number.isFinite(entry.updatedAt)) {
+    return entry.updatedAt;
+  }
+  return Date.parse(entry.createdAt || "") || 0;
 }
 
 /**
